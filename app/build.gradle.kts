@@ -20,9 +20,6 @@ android {
             // keyPassword = "android"
 
             storeFile = file("C:/Users/fedor/AndroidStudioProjects/bbi_password/password") // Создайте этот файл через Build -> Generate Signed Bundle
-            storePassword = "q123456"
-            keyAlias = "key0"
-            keyPassword = "q123456"
         }
     }
     defaultConfig {
