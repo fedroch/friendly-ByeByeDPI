@@ -25,6 +25,7 @@ import io.github.fedroch.byedpi.services.ServiceManager
 import io.github.fedroch.byedpi.utility.HistoryUtils
 import io.github.fedroch.byedpi.utility.getPreferences
 import io.github.fedroch.byedpi.utility.SiteCheckUtils
+import io.github.fedroch.byedpi.utility.StrategyBanditSelector
 import io.github.fedroch.byedpi.utility.getIntStringNotNull
 import io.github.fedroch.byedpi.utility.getLongStringNotNull
 import androidx.core.content.edit
@@ -46,6 +47,7 @@ class TestActivity : BaseActivity() {
 
     private lateinit var siteChecker: SiteCheckUtils
     private lateinit var cmdHistoryUtils: HistoryUtils
+    private lateinit var banditSelector: StrategyBanditSelector
     private lateinit var sites: List<String>
     private lateinit var cmds: List<String>
 
@@ -70,6 +72,7 @@ class TestActivity : BaseActivity() {
         val port = prefs.getIntStringNotNull("byedpi_proxy_port", 1080)
 
         siteChecker = SiteCheckUtils(ip, port)
+        banditSelector = StrategyBanditSelector(this)
         cmdHistoryUtils = HistoryUtils(this)
 
         strategiesRecyclerView = findViewById(R.id.strategiesRecyclerView)
@@ -221,24 +224,56 @@ class TestActivity : BaseActivity() {
             val requestsCount = prefs.getIntStringNotNull("byedpi_proxytest_requests", 1)
             val requestTimeout = prefs.getLongStringNotNull("byedpi_proxytest_timeout", 5)
             val requestLimit = prefs.getIntStringNotNull("byedpi_proxytest_limit", 20)
+            val contextKey = banditSelector.buildContextKey(
+                proxyIp = prefs.getStringNotNull("byedpi_proxy_ip", "127.0.0.1"),
+                proxyPort = prefs.getIntStringNotNull("byedpi_proxy_port", 1080)
+            )
+            val banditSession = banditSelector.createSession(contextKey, cmds)
+            val remainingIndexes = strategies.indices.toMutableSet()
+            var testedCount = 0
 
-            for (strategyIndex in strategies.indices) {
+            while (isActive && remainingIndexes.isNotEmpty()) {
+                val strategyIndex = banditSession.pickNextIndex(cmds, remainingIndexes)
+                remainingIndexes.remove(strategyIndex)
+
                 if (!isActive) break
 
                 val strategy = strategies[strategyIndex]
-                val cmdIndex = strategyIndex + 1
+                testedCount += 1
 
                 withContext(Dispatchers.Main) {
-                    progressTextView.text = getString(R.string.test_process, cmdIndex, cmds.size)
+                    progressTextView.text = getString(R.string.test_process, testedCount, cmds.size)
                 }
 
                 updateCmdArgs(strategy.command)
 
-                if (isProxyRunning()) stopTesting()
-                else ServiceManager.start(this@TestActivity, Mode.Proxy)
+                if (isProxyRunning()) {
+                    ServiceManager.stop(this@TestActivity)
+                    waitForProxyStatus(AppStatus.Halted)
+                }
+
+                ServiceManager.start(this@TestActivity, Mode.Proxy)
 
                 if (!waitForProxyStatus(AppStatus.Running)) {
-                    stopTesting()
+                    strategy.totalRequests = sites.size * requestsCount
+                    strategy.isCompleted = true
+
+                    banditSession.recordResult(
+                        command = strategy.command,
+                        successCount = 0,
+                        totalRequests = strategy.totalRequests.coerceAtLeast(1),
+                        elapsedMs = requestTimeout * 1000L
+                    )
+
+                    withContext(Dispatchers.Main) {
+                        strategyAdapter.notifyItemChanged(strategyIndex)
+                        strategyAdapter.updateStrategies(strategies, sortByPercentage = false)
+                        saveResults(strategies)
+                    }
+
+                    ServiceManager.stop(this@TestActivity)
+                    waitForProxyStatus(AppStatus.Halted)
+                    continue
                 }
 
                 delay(delaySec * 500L)
@@ -250,6 +285,7 @@ class TestActivity : BaseActivity() {
                     strategyAdapter.notifyItemChanged(strategyIndex)
                 }
 
+                val startedAt = System.currentTimeMillis()
                 siteChecker.checkSitesAsync(
                     sites = sites,
                     requestsCount = requestsCount,
@@ -266,19 +302,27 @@ class TestActivity : BaseActivity() {
                         }
                     }
                 )
+                val elapsedMs = System.currentTimeMillis() - startedAt
 
                 strategy.isCompleted = true
+                banditSession.recordResult(
+                    command = strategy.command,
+                    successCount = strategy.successCount,
+                    totalRequests = strategy.totalRequests.coerceAtLeast(1),
+                    elapsedMs = elapsedMs
+                )
 
                 withContext(Dispatchers.Main) {
-                    strategyAdapter.updateStrategies(strategies, sortByPercentage = true)
+                    strategyAdapter.updateStrategies(strategies, sortByPercentage = false)
                     saveResults(strategies)
                 }
 
-                if (isProxyRunning()) ServiceManager.stop(this@TestActivity)
-                else stopTesting()
+                if (isProxyRunning()) {
+                    ServiceManager.stop(this@TestActivity)
+                }
 
                 if (!waitForProxyStatus(AppStatus.Halted)) {
-                    stopTesting()
+                    break
                 }
 
                 delay(delaySec * 500L)

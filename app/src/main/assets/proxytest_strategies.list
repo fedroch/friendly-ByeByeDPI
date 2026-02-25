@@ -12,6 +12,7 @@
 -s25 -r5+s -s25+s -a50 -Ar -s50 -r5+s -s50+s -a100
 -s25 -r5+s -s25+s -a5 -Ar,t,s -s50 -r5+s -s50+s -a1
 -s25 -r5+s -s25+s -a50 -Ar,t,s -s50 -r5+s -s50+s -a100
+-d1 -s0+s -d3+s -s6+s -d9+s -s12+s -d15+s -s20+s -d25+s -s30+s -d35+s -At,r,s -f-1 -a1 -At,r,s -d1:11+sm -S -a1 -At,r,s -n vkvd###.okcdn.ru -Qr -f1 -d1:11+sm -s1:11+sm -S -a1
 -a2 -H:"youtube.com youtu.be ggpht.com ytimg.com googleusercontent.com googleapis.com googlevideo.com discord.com discord.gg discord.app discord.media discord.gift discord.store modrinth.com telegram.org t.me web.telegram.org cloudflare.com cloudflare-dns.com twitter.com x.com t.co telesco.pe" -o1 -An -j:"173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22" -f2+nmh -t3 -An -o1+hm
 -n {sni} -Qr -m2 -f-1 -d7 -a1
 -f1+nme -t6 -As -n googlevideo.com -Qr -s1:6+sm -a1 -As -s5:12+sm -a1 -As -d3 -q7 -r6 -Mh -As
